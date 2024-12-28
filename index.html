@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head class="scroll-smooth">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://unpkg.com/showdown/dist/showdown.min.js"></script>
+    <title>Ollama Web</title>
+  </head>
+  <body class="bg-slate-900 text-white">
+    <script type="module">
+      import { Ollama } from "https://esm.run/ollama/dist/browser.mjs";
+
+      const send = document.getElementById("send");
+      const responseDiv = document.getElementById("response");
+
+      const ollama = new Ollama();
+
+      const converter = new showdown.Converter({ smoothLivePreview: true });
+
+      const models = document.getElementById("models");
+      const toggleButton = (toggle = true) => {
+        send.style.opacity = toggle ? "1" : "0.5";
+        send.disabled = !toggle;
+        send.innerHTML = toggle ? "Ask Ollama 🪄" : "Responding...";
+      };
+
+      ollama.list().then((list) => {
+        list.models.forEach((model, index) => {
+          const option = document.createElement("option");
+          option.value = model.model;
+          option.textContent = model.model;
+          option.selected = index === 0;
+          models.appendChild(option);
+        });
+        toggleButton();
+      });
+
+      send.addEventListener("click", async () => {
+        const prompt = document.getElementById("prompt").value;
+        const message = { role: "user", content: prompt };
+        responseDiv.innerHTML = "";
+        toggleButton(false);
+
+        const response = await ollama.chat({
+          model: models.value,
+          messages: [message],
+          stream: true,
+        });
+        responseDiv.innerHTML = "";
+        let responseText = "";
+        let backtickCount = 0;
+        for await (const part of response) {
+          responseText += part.message.content;
+          backtickCount += part.message.content.split("```").length - 1;
+          responseDiv.innerHTML = converter.makeHtml(
+            responseText + (backtickCount % 2 == 1 ? "\n```" : ""),
+          );
+          responseDiv.scrollTop = responseDiv.scrollHeight;
+        }
+        responseDiv.innerHTML = converter.makeHtml(responseText);
+        toggleButton(true);
+      });
+    </script>
+    <div class="flex flex-col items-center justify-center h-screen p-4">
+      <div
+        class="flex-1 prose prose-invert prose-xl overflow-y-auto w-full h-full py-4"
+        id="response"
+      ></div>
+      <div
+        class="rounded-lg outline outline-1 -outline-offset-1 outline-gray-500 focus-within:outline focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-gray-400 w-full max-w-3xl"
+      >
+        <label for="prompt" class="sr-only">Whats on your mind...</label>
+        <textarea
+          rows="3"
+          name="prompt"
+          id="prompt"
+          class="block w-full resize-none p-8 text-2xl text-gray-100 placeholder:text-gray-600 focus:outline focus:outline-0 bg-slate-800"
+          placeholder="Whats on your mind..."
+        ></textarea>
+        <div
+          class="flex items-center justify-between space-x-3 border-t border-gray-200 px-2 py-2 sm:px-3"
+        >
+          <div class="grid grid-cols-1">
+            <select
+              id="models"
+              name="models"
+              class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-slate-800 py-1.5 pl-3 pr-8 text-base outline outline-1 -outline-offset-1 outline-gray-300 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-gray-400 sm:text-sm/6"
+              aria-label="Select a model"
+            ></select>
+            <svg
+              class="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-gray-500 sm:size-4"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+              data-slot="icon"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </div>
+          <button
+            class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            id="send"
+          >
+            Loading...
+          </button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
